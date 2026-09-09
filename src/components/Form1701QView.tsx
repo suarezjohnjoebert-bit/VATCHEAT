@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Data1701Q, ClientProfile, Quarter } from '../types/tax';
 import { calculate1701Q } from '../utils/taxCalculations';
 import { formatPHP, parseNumber } from '../utils/formatters';
-import { Calculator, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Calculator, AlertTriangle } from 'lucide-react';
 import { PenaltiesModal } from './PenaltiesModal';
 
 interface Form1701QViewProps {
@@ -21,7 +21,6 @@ export const Form1701QView: React.FC<Form1701QViewProps> = ({
   onChange,
 }) => {
   const [showPenalties, setShowPenalties] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const result = calculate1701Q(data);
 
@@ -30,23 +29,6 @@ export const Form1701QView: React.FC<Form1701QViewProps> = ({
       ...data,
       [field]: value,
     });
-  };
-
-  const handleCopySummary = () => {
-    const text = [
-      `BIR FORM 1701Q - ${quarter} ${year}`,
-      `Client: ${client.registeredName} (TIN: ${client.tin})`,
-      `Gross Sales/Revenues: ₱${result.boxBreakdown.lineTotalGross.toLocaleString()}`,
-      `Deductions (${result.deductionType}): ₱${result.allowableDeductions.toLocaleString()}`,
-      `Taxable Income: ₱${result.netTaxableIncome.toLocaleString()}`,
-      `Tax Due: ₱${result.taxDue.toLocaleString()}`,
-      `Total Tax Credits (2307 & Prior): ₱${result.totalTaxCredits.toLocaleString()}`,
-      `Net Tax Payable: ₱${result.netTaxPayable.toLocaleString()}`,
-    ].join('\n');
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -66,14 +48,6 @@ export const Form1701QView: React.FC<Form1701QViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            id="copy-1701q-btn"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Summary'}</span>
-          </button>
           <button
             id="open-penalties-1701q-btn"
             onClick={() => setShowPenalties(true)}

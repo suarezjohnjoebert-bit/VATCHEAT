@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Data1601EQ, ClientProfile, EwtLineItem } from '../types/tax';
 import { calculate1601EQ } from '../utils/taxCalculations';
 import { formatPHP, parseNumber } from '../utils/formatters';
-import { Copy, Check, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { PenaltiesModal } from './PenaltiesModal';
 
 interface Form1601EQViewProps {
@@ -30,7 +30,6 @@ export const Form1601EQView: React.FC<Form1601EQViewProps> = ({
   onChange,
 }) => {
   const [showPenalties, setShowPenalties] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const result = calculate1601EQ(data);
 
@@ -67,21 +66,6 @@ export const Form1601EQView: React.FC<Form1601EQViewProps> = ({
   const formSubtitle = data.isMonthly
     ? 'Monthly Remittance Form of Creditable Income Taxes Withheld (Expanded)'
     : 'Quarterly Remittance Return of Creditable Income Taxes Withheld (Expanded)';
-
-  const handleCopySummary = () => {
-    const text = [
-      `${formCode} - ${periodLabel}`,
-      `Withholding Agent: ${client.registeredName} (TIN: ${client.tin})`,
-      `Total Tax Base: ₱${result.totalTaxBase.toLocaleString()}`,
-      `Total Taxes Withheld: ₱${result.totalTaxWithheld.toLocaleString()}`,
-      `Prior Remittances / Credits: ₱${(result.priorMonthTaxRemitted + result.overpaymentPreviousPeriod).toLocaleString()}`,
-      `Net Amount of Tax Remitted: ₱${result.netAmountPayable.toLocaleString()}`,
-    ].join('\n');
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className="space-y-6">
@@ -121,14 +105,6 @@ export const Form1601EQView: React.FC<Form1601EQViewProps> = ({
             </button>
           </div>
 
-          <button
-            id="copy-ewt-btn"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
           <button
             id="open-penalties-ewt-btn"
             onClick={() => setShowPenalties(true)}

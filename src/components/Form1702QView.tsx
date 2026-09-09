@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Data1702Q, ClientProfile, Quarter } from '../types/tax';
 import { calculate1702Q } from '../utils/taxCalculations';
 import { formatPHP, parseNumber } from '../utils/formatters';
-import { Copy, Check, AlertTriangle, Building2 } from 'lucide-react';
+import { AlertTriangle, Building2 } from 'lucide-react';
 import { PenaltiesModal } from './PenaltiesModal';
 
 interface Form1702QViewProps {
@@ -21,7 +21,6 @@ export const Form1702QView: React.FC<Form1702QViewProps> = ({
   onChange,
 }) => {
   const [showPenalties, setShowPenalties] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const result = calculate1702Q(data);
 
@@ -30,26 +29,6 @@ export const Form1702QView: React.FC<Form1702QViewProps> = ({
       ...data,
       [field]: value,
     });
-  };
-
-  const handleCopySummary = () => {
-    const text = [
-      `BIR FORM 1702Q - ${quarter} ${year}`,
-      `Corporation: ${client.registeredName} (TIN: ${client.tin})`,
-      `Gross Sales/Revenues: ₱${result.grossSales.toLocaleString()}`,
-      `Cost of Sales: ₱${result.costOfSales.toLocaleString()}`,
-      `Gross Income from Operations: ₱${result.grossIncomeFromOperations.toLocaleString()}`,
-      `Operating Expenses: ₱${result.operatingExpenses.toLocaleString()}`,
-      `Net Taxable Income: ₱${result.netTaxableIncome.toLocaleString()}`,
-      `Applied Tax Scheme: ${result.appliedTaxType}`,
-      `Total Tax Due: ₱${result.taxDue.toLocaleString()}`,
-      `Total Credits (2307 & Prior): ₱${result.totalTaxCredits.toLocaleString()}`,
-      `Net Tax Payable: ₱${result.netTaxPayable.toLocaleString()}`,
-    ].join('\n');
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -72,14 +51,6 @@ export const Form1702QView: React.FC<Form1702QViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            id="copy-1702q-btn"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Summary'}</span>
-          </button>
           <button
             id="open-penalties-1702q-btn"
             onClick={() => setShowPenalties(true)}

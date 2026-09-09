@@ -15,6 +15,7 @@ export interface ClientProfile {
   classification: TaxClassification;
   vatStatus: VatStatus;
   isWithholdingAgent: boolean;
+  hasBranches?: boolean; // Client has branches or is a single unit / no branch
   notes?: string;
 }
 

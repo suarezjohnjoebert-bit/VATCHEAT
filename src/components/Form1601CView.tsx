@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Data1601C, ClientProfile } from '../types/tax';
 import { calculate1601C } from '../utils/taxCalculations';
 import { formatPHP, parseNumber } from '../utils/formatters';
-import { Copy, Check, AlertTriangle, Users } from 'lucide-react';
+import { AlertTriangle, Users } from 'lucide-react';
 import { PenaltiesModal } from './PenaltiesModal';
 
 interface Form1601CViewProps {
@@ -26,7 +26,6 @@ export const Form1601CView: React.FC<Form1601CViewProps> = ({
   onChange,
 }) => {
   const [showPenalties, setShowPenalties] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const result = calculate1601C(data);
 
@@ -35,22 +34,6 @@ export const Form1601CView: React.FC<Form1601CViewProps> = ({
       ...data,
       [field]: value,
     });
-  };
-
-  const handleCopySummary = () => {
-    const text = [
-      `BIR FORM 1601-C - ${MONTH_NAMES[month - 1]} ${year}`,
-      `Withholding Agent: ${client.registeredName} (TIN: ${client.tin})`,
-      `Total Gross Compensation: ₱${result.totalGrossCompensation.toLocaleString()}`,
-      `Total Non-Taxable Compensation: ₱${result.totalNonTaxableCompensation.toLocaleString()}`,
-      `Taxable Compensation: ₱${result.taxableCompensation.toLocaleString()}`,
-      `Tax Required Withheld: ₱${result.taxRequiredWithheld.toLocaleString()}`,
-      `Net Tax Remitted: ₱${result.netTaxRemitted.toLocaleString()}`,
-    ].join('\n');
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -72,14 +55,6 @@ export const Form1601CView: React.FC<Form1601CViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            id="copy-1601c-btn"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Summary'}</span>
-          </button>
           <button
             id="open-penalties-1601c-btn"
             onClick={() => setShowPenalties(true)}

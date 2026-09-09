@@ -41,6 +41,8 @@ import {
   RotateCcw,
   Lock,
   AlertCircle,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 type FormTab =
@@ -85,6 +87,8 @@ export default function App() {
   // Modal state
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<ClientProfile | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<ClientProfile | null>(null);
+  const [deleteClientError, setDeleteClientError] = useState<string | null>(null);
 
   // Per-client calculation data
   const [data1701QMap, setData1701QMap] = useState<Record<string, Data1701Q>>(() => {
@@ -325,6 +329,58 @@ export default function App() {
     setIsClientModalOpen(true);
   };
 
+  const handleDeleteClient = (clientIdToDelete?: string) => {
+    const idToDelete = clientIdToDelete || activeClientId;
+    if (clients.length <= 1) {
+      setDeleteClientError('At least one client profile is required. You cannot delete the only client in the workspace.');
+      return;
+    }
+    const target = clients.find((c) => c.id === idToDelete) || activeClient;
+    setClientToDelete(target);
+  };
+
+  const handleConfirmDeleteClient = () => {
+    if (!clientToDelete) return;
+    const idToDelete = clientToDelete.id;
+    if (clients.length <= 1) {
+      setClientToDelete(null);
+      return;
+    }
+
+    const remainingClients = clients.filter((c) => c.id !== idToDelete);
+    setClients(remainingClients);
+
+    // Clean up filings
+    const next1701Q = { ...data1701QMap };
+    delete next1701Q[idToDelete];
+    setData1701QMap(next1701Q);
+
+    const next1702Q = { ...data1702QMap };
+    delete next1702Q[idToDelete];
+    setData1702QMap(next1702Q);
+
+    const next2550Q = { ...data2550QMap };
+    delete next2550Q[idToDelete];
+    setData2550QMap(next2550Q);
+
+    const next2551Q = { ...data2551QMap };
+    delete next2551Q[idToDelete];
+    setData2551QMap(next2551Q);
+
+    const next1601C = { ...data1601CMap };
+    delete next1601C[idToDelete];
+    setData1601CMap(next1601C);
+
+    const next1601EQ = { ...data1601EQMap };
+    delete next1601EQ[idToDelete];
+    setData1601EQMap(next1601EQ);
+
+    if (activeClientId === idToDelete && remainingClients.length > 0) {
+      setActiveClientId(remainingClients[0].id);
+    }
+    setClientToDelete(null);
+  };
+
   const handleResetData = () => {
     if (window.confirm('Reset all client calculations and restore defaults?')) {
       setClients(DEFAULT_CLIENTS);
@@ -407,6 +463,7 @@ export default function App() {
         }}
         onOpenAddClient={handleOpenAddClient}
         onOpenEditClient={handleOpenEditClient}
+        onDeleteClient={() => handleDeleteClient(activeClientId)}
         quarter={quarter}
         onSelectQuarter={setQuarter}
         month={month}
@@ -770,8 +827,111 @@ export default function App() {
         isOpen={isClientModalOpen}
         onClose={() => setIsClientModalOpen(false)}
         onSave={handleSaveClient}
+        onDelete={(id) => handleDeleteClient(id)}
         clientToEdit={clientToEdit}
       />
+
+      {/* Delete Client Confirmation Modal */}
+      {clientToDelete && (
+        <div
+          id="delete-client-modal-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+          onClick={() => setClientToDelete(null)}
+        >
+          <div
+            id="delete-client-modal"
+            className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-rose-800">
+                <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-rose-950">Delete Client Profile</h3>
+                  <p className="text-[11px] text-rose-700">Permanent Client Removal</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="close-delete-client-modal-btn"
+                onClick={() => setClientToDelete(null)}
+                className="p-1 rounded-md text-rose-400 hover:text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[11px] font-semibold uppercase text-slate-500 block">Client Trade Name</span>
+                  <span className="text-sm font-bold text-slate-900 truncate block">{clientToDelete.tradeName}</span>
+                  <span className="text-xs text-slate-500 font-mono">TIN: {clientToDelete.tin}</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete <strong className="text-slate-900">{clientToDelete.tradeName}</strong>?
+                This will permanently delete this client and all associated tax return calculations (1701Q, 1702Q, 2550Q, 2551Q, 1601-C, 1601-EQ).
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                id="cancel-delete-client-btn"
+                onClick={() => setClientToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="confirm-delete-client-btn"
+                onClick={handleConfirmDeleteClient}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Client</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Client Error Modal */}
+      {deleteClientError && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+          onClick={() => setDeleteClientError(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 text-amber-800">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+              <h3 className="font-bold text-sm text-slate-900">Cannot Delete Client</h3>
+            </div>
+            <p className="text-xs text-slate-600">{deleteClientError}</p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteClientError(null)}
+                className="px-4 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

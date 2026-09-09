@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Data2551Q, ClientProfile, Quarter } from '../types/tax';
 import { calculate2551Q } from '../utils/taxCalculations';
 import { formatPHP, parseNumber } from '../utils/formatters';
-import { Copy, Check, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Download } from 'lucide-react';
 import { PenaltiesModal } from './PenaltiesModal';
+import { BranchVatSchedule } from './BranchVatSchedule';
+import { downloadBirSlspExcelTemplate } from '../utils/excelVatTemplate';
 
 interface Form2551QViewProps {
   client: ClientProfile;
@@ -21,7 +23,6 @@ export const Form2551QView: React.FC<Form2551QViewProps> = ({
   onChange,
 }) => {
   const [showPenalties, setShowPenalties] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const result = calculate2551Q(data);
 
@@ -32,22 +33,22 @@ export const Form2551QView: React.FC<Form2551QViewProps> = ({
     });
   };
 
-  const handleCopySummary = () => {
-    const text = [
-      `BIR FORM 2551Q - ${quarter} ${year}`,
-      `Client: ${client.registeredName} (TIN: ${client.tin})`,
-      `Gross Sales/Receipts: ₱${result.grossSales.toLocaleString()}`,
-      `Exempt Sales: ₱${result.exemptSales.toLocaleString()}`,
-      `Taxable Base: ₱${result.taxableSales.toLocaleString()}`,
-      `Percentage Tax Rate: ${result.taxRatePercent}%`,
-      `Tax Due: ₱${result.taxDue.toLocaleString()}`,
-      `2307 Percentage Tax Withheld: ₱${result.totalTaxCredits.toLocaleString()}`,
-      `Net Tax Payable: ₱${result.netPercentageTaxPayable.toLocaleString()}`,
-    ].join('\n');
+  const handleSyncFromBranchSchedule = (totals: { grossSales: number; exemptSales: number }) => {
+    onChange({
+      ...data,
+      grossSalesCurrentQuarter: totals.grossSales,
+      exemptSales: totals.exemptSales,
+    });
+  };
 
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleDownloadTemplate = () => {
+    downloadBirSlspExcelTemplate({
+      type: 'Sales',
+      quarter,
+      monthLabel: '1st Month',
+      client,
+      includeSampleRow: true,
+    });
   };
 
   return (
@@ -65,15 +66,17 @@ export const Form2551QView: React.FC<Form2551QViewProps> = ({
           <h2 className="text-base font-semibold mt-1">{client.tradeName}</h2>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            id="copy-2551q-btn"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
+            id="download-2551q-template-btn"
+            onClick={handleDownloadTemplate}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors shadow-xs"
+            title="Download formatted BIR SLSP Excel template (.xlsx)"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Summary'}</span>
+            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <span>Download Template</span>
           </button>
+
           <button
             id="open-penalties-2551q-btn"
             onClick={() => setShowPenalties(true)}
@@ -84,6 +87,15 @@ export const Form2551QView: React.FC<Form2551QViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Multi-Branch & Line of Business Schedule Component */}
+      <BranchVatSchedule
+        client={client}
+        quarter={quarter}
+        year={year}
+        formType="2551Q"
+        onSync2551Q={handleSyncFromBranchSchedule}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-6">

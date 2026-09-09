@@ -12,6 +12,7 @@ import {
   Calendar,
   Download,
   Upload,
+  Trash2,
 } from 'lucide-react';
 
 interface ClientHeaderProps {
@@ -20,6 +21,7 @@ interface ClientHeaderProps {
   onSelectClient: (client: ClientProfile) => void;
   onOpenAddClient: () => void;
   onOpenEditClient: () => void;
+  onDeleteClient?: () => void;
   quarter: Quarter;
   onSelectQuarter: (q: Quarter) => void;
   month: number;
@@ -66,6 +68,7 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({
   onSelectClient,
   onOpenAddClient,
   onOpenEditClient,
+  onDeleteClient,
   quarter,
   onSelectQuarter,
   month,
@@ -216,6 +219,17 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
+
+            {onDeleteClient && (
+              <button
+                id="delete-active-client-btn"
+                onClick={onDeleteClient}
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                title={`Delete ${activeClient.tradeName}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
 
             <button
               id="add-new-client-btn"

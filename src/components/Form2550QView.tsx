@@ -3,25 +3,15 @@ import { Data2550Q, ClientProfile, Quarter } from '../types/tax';
 import { calculate2550Q } from '../utils/taxCalculations';
 import { formatPHP, parseNumber } from '../utils/formatters';
 import {
-  Copy,
-  Check,
   AlertTriangle,
-  Upload,
   Download,
-  FileSpreadsheet,
-  Building2,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  XCircle,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { PenaltiesModal } from './PenaltiesModal';
-import {
-  downloadVatExcelTemplate,
-  parseVatExcelBuffer,
-  applyParsedVatToData2550Q,
-  ParsedVatExcelResult,
-} from '../utils/excelVatTemplate';
+import { downloadBirSlspExcelTemplate } from '../utils/excelVatTemplate';
+import { BranchVatSchedule } from './BranchVatSchedule';
+import { exportMultiBranchAnd2550QPdf } from '../utils/pdfExport';
 
 interface Form2550QViewProps {
   client: ClientProfile;
@@ -39,14 +29,26 @@ export const Form2550QView: React.FC<Form2550QViewProps> = ({
   onChange,
 }) => {
   const [showPenalties, setShowPenalties] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [uploadedResult, setUploadedResult] = useState<ParsedVatExcelResult | null>(null);
-  const [showBreakdown, setShowBreakdown] = useState(true);
-  const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const result = calculate2550Q(data);
+
+  const handleExportPdf = async () => {
+    try {
+      setIsExportingPdf(true);
+      await exportMultiBranchAnd2550QPdf({
+        client,
+        quarter,
+        year,
+        data2550Q: data,
+        result2550Q: result,
+      });
+    } catch (err) {
+      console.error('Failed to export PDF', err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   const updateField = (field: keyof Data2550Q, value: any) => {
     onChange({
@@ -55,79 +57,37 @@ export const Form2550QView: React.FC<Form2550QViewProps> = ({
     });
   };
 
-  const handleCopySummary = () => {
-    const text = [
-      `BIR FORM 2550Q - ${quarter} ${year}`,
-      `Client: ${client.registeredName} (TIN: ${client.tin})`,
-      `Vatable Sales (12%): ₱${result.vatableSales.toLocaleString()}`,
-      `Output VAT Due: ₱${result.outputTax.toLocaleString()}`,
-      `Total Available Input VAT: ₱${result.totalAvailableInputTax.toLocaleString()}`,
-      `Net VAT Before Credits: ₱${result.netVatBeforeCredits.toLocaleString()}`,
-      `Creditable VAT Withheld (2307): ₱${result.totalTaxCredits.toLocaleString()}`,
-      result.isExcessInputVat
-        ? `Excess Input VAT Carried Over: ₱${result.excessInputTax.toLocaleString()}`
-        : `Net VAT Payable: ₱${result.netVatPayable.toLocaleString()}`,
-    ].join('\n');
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleSyncFromBranchSchedule = (totals: {
+    vatableSales: number;
+    zeroRatedSales: number;
+    vatExemptSales: number;
+    inputPurchasesGoods: number;
+    inputPurchasesServices: number;
+    inputCapitalGoods: number;
+  }) => {
+    onChange({
+      ...data,
+      vatableSales: totals.vatableSales,
+      zeroRatedSales: totals.zeroRatedSales,
+      vatExemptSales: totals.vatExemptSales,
+      inputPurchasesGoods: totals.inputPurchasesGoods,
+      inputPurchasesServices: totals.inputPurchasesServices,
+      inputCapitalGoods: totals.inputCapitalGoods,
+    });
   };
 
   const handleDownloadTemplate = () => {
-    downloadVatExcelTemplate(client.tradeName, quarter, year);
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadError(null);
-    setUploadSuccessMsg(null);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const buffer = event.target?.result as ArrayBuffer;
-        const parsed = parseVatExcelBuffer(buffer, file.name);
-
-        if (parsed.rowCount === 0) {
-          setUploadError('No valid branch or monthly rows found in the uploaded file. Please use the provided template.');
-          return;
-        }
-
-        setUploadedResult(parsed);
-        setShowBreakdown(true);
-
-        // Apply parsed figures to Form 2550Q
-        const updated = applyParsedVatToData2550Q(parsed, data);
-        onChange(updated);
-
-        setUploadSuccessMsg(
-          `Successfully loaded ${parsed.rowCount} records across ${parsed.branches.length} branch(es) for Months 1, 2, and 3!`
-        );
-
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      } catch (err: any) {
-        setUploadError(`Failed to process Excel file: ${err.message || 'Check file format'}`);
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    downloadBirSlspExcelTemplate({
+      type: 'Sales',
+      quarter,
+      monthLabel: '1st Month',
+      client,
+      includeSampleRow: true,
+    });
   };
 
   return (
     <div className="space-y-6">
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx, .xls, .csv"
-        className="hidden"
-        onChange={handleFileUpload}
-      />
-
       {/* Main Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-900 text-white rounded-xl shadow-xs">
         <div>
@@ -143,35 +103,36 @@ export const Form2550QView: React.FC<Form2550QViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Download Landscape PDF Form Button */}
+          <button
+            id="download-pdf-summary-2550q-header-btn"
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-violet-700 hover:bg-violet-800 text-white rounded-lg transition-colors shadow-xs disabled:opacity-60 cursor-pointer"
+            title="Download Landscape PDF of Multi-Branch Aggregation Summary, Schedules 1 to 3, and Form 2550Q VAT Summary"
+          >
+            {isExportingPdf ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Exporting PDF...</span>
+              </>
+            ) : (
+              <>
+                <FileText className="w-3.5 h-3.5" />
+                <span>Download PDF Summary (Landscape)</span>
+              </>
+            )}
+          </button>
+
           {/* Download Template Button */}
           <button
             id="download-vat-template-btn"
             onClick={handleDownloadTemplate}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors shadow-xs"
-            title="Download formatted Excel template (.xlsx) for multi-branch/monthly VAT entry"
+            title="Download formatted BIR SLSP Excel template (.xlsx)"
           >
             <Download className="w-3.5 h-3.5 text-violet-400" />
             <span>Download Template</span>
-          </button>
-
-          {/* Upload Excel Button */}
-          <button
-            id="upload-vat-excel-btn"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors shadow-xs font-semibold"
-            title="Upload completed branch/monthly VAT Excel file"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Excel</span>
-          </button>
-
-          <button
-            id="copy-2550q-btn"
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Summary'}</span>
           </button>
 
           <button
@@ -185,205 +146,15 @@ export const Form2550QView: React.FC<Form2550QViewProps> = ({
         </div>
       </div>
 
-      {/* Success Notification */}
-      {uploadSuccessMsg && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs">
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span className="font-medium">{uploadSuccessMsg}</span>
-          </div>
-          <button
-            onClick={() => setUploadSuccessMsg(null)}
-            className="text-emerald-700 hover:text-emerald-900 font-bold"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Error Notification */}
-      {uploadError && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{uploadError}</span>
-          </div>
-          <button
-            onClick={() => setUploadError(null)}
-            className="text-rose-700 hover:text-rose-900 font-bold"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Excel Upload Info / Branch & Month Breakdown Panel */}
-      {uploadedResult && (
-        <div className="bg-white border border-violet-200 rounded-xl shadow-xs overflow-hidden">
-          <div className="flex items-center justify-between p-4 bg-violet-50/70 border-b border-violet-100">
-            <div className="flex items-center gap-2.5">
-              <FileSpreadsheet className="w-5 h-5 text-violet-700" />
-              <div>
-                <div className="text-sm font-bold text-violet-950 flex items-center gap-2">
-                  <span>Uploaded Excel Breakdown: {uploadedResult.fileName}</span>
-                  <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-violet-200/80 text-violet-900 font-mono">
-                    {uploadedResult.rowCount} rows • {uploadedResult.branches.length} branch(es)
-                  </span>
-                </div>
-                <div className="text-xs text-violet-700 mt-0.5">
-                  Multi-Branch & 3-Month quarterly data loaded directly into BIR Form 2550Q schedules below
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowBreakdown(!showBreakdown)}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100 rounded-lg transition-colors"
-              >
-                {showBreakdown ? (
-                  <>
-                    <span>Hide Breakdown</span>
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  </>
-                ) : (
-                  <>
-                    <span>View Breakdown</span>
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setUploadedResult(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                title="Dismiss breakdown view"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {showBreakdown && (
-            <div className="p-4 space-y-5">
-              {/* Monthly Breakdown Cards */}
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Quarterly Breakdown by Month (1st, 2nd, and 3rd Month of Quarter)</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {uploadedResult.summaryByMonth.map((m) => (
-                    <div
-                      key={m.month}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-800 border-b border-slate-200 pb-1">
-                        <span>{m.monthLabel}</span>
-                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-violet-100 text-violet-800 font-mono">
-                          Month {m.month}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-xs text-slate-600">
-                        <span>Vatable Sales:</span>
-                        <span className="font-mono font-medium text-slate-900">{formatPHP(m.sales)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-slate-600">
-                        <span>Output Tax (12%):</span>
-                        <span className="font-mono font-medium text-violet-700">{formatPHP(m.outputTax)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-slate-600">
-                        <span>Input Purchases:</span>
-                        <span className="font-mono font-medium text-slate-800">{formatPHP(m.inputPurchases)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Branch / Line of Business Table */}
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Breakdown by Branch or Line of Business</span>
-                </div>
-
-                <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                      <tr>
-                        <th className="py-2.5 px-3">Branch / Line of Business</th>
-                        <th className="py-2.5 px-3 text-right">Month 1 Sales</th>
-                        <th className="py-2.5 px-3 text-right">Month 2 Sales</th>
-                        <th className="py-2.5 px-3 text-right">Month 3 Sales</th>
-                        <th className="py-2.5 px-3 text-right">Total Qtr Sales</th>
-                        <th className="py-2.5 px-3 text-right">Output VAT (12%)</th>
-                        <th className="py-2.5 px-3 text-right">Input Purchases</th>
-                        <th className="py-2.5 px-3 text-right font-bold text-slate-900">Est. Net VAT</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {uploadedResult.summaryByBranch.map((b, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/80">
-                          <td className="py-2 px-3 font-medium text-slate-900 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-violet-600"></span>
-                            <span>{b.branch}</span>
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-600">{formatPHP(b.month1Sales)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-600">{formatPHP(b.month2Sales)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-600">{formatPHP(b.month3Sales)}</td>
-                          <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">
-                            {formatPHP(b.totalSales)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-violet-700 font-medium">
-                            {formatPHP(b.outputTax)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-600">
-                            {formatPHP(b.totalInputPurchases)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                            {formatPHP(b.netVatEstimated)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
-                      <tr>
-                        <td className="py-2.5 px-3">Total Consolidated</td>
-                        <td className="py-2.5 px-3 text-right font-mono">
-                          {formatPHP(uploadedResult.summaryByBranch.reduce((s, b) => s + b.month1Sales, 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono">
-                          {formatPHP(uploadedResult.summaryByBranch.reduce((s, b) => s + b.month2Sales, 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono">
-                          {formatPHP(uploadedResult.summaryByBranch.reduce((s, b) => s + b.month3Sales, 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-violet-900">
-                          {formatPHP(uploadedResult.totals.vatableSales + uploadedResult.totals.salesToGovernment)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-violet-700">
-                          {formatPHP(result.outputTax)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono">
-                          {formatPHP(
-                            uploadedResult.totals.inputPurchasesGoods +
-                              uploadedResult.totals.inputPurchasesServices +
-                              uploadedResult.totals.inputCapitalGoods +
-                              uploadedResult.totals.inputImportations
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-800">
-                          {formatPHP(result.netVatPayable)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Multi-Branch & Line of Business Schedule Component */}
+      <BranchVatSchedule
+        client={client}
+        quarter={quarter}
+        year={year}
+        formType="2550Q"
+        data2550Q={data}
+        onSync2550Q={handleSyncFromBranchSchedule}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-6">
@@ -596,7 +367,21 @@ export const Form2550QView: React.FC<Form2550QViewProps> = ({
               <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 2550Q VAT Summary
               </div>
-              <span className="text-xs font-mono text-slate-500">Auto-Computed</span>
+              <button
+                type="button"
+                id="download-pdf-from-vat-summary-btn"
+                onClick={handleExportPdf}
+                disabled={isExportingPdf}
+                className="flex items-center gap-1 text-xs font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-2 py-0.5 rounded border border-violet-200 transition-colors cursor-pointer disabled:opacity-60"
+                title="Download Landscape PDF Form (Aggregation, Schedules 1-3, VAT Summary)"
+              >
+                {isExportingPdf ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <FileText className="w-3 h-3" />
+                )}
+                <span>PDF Summary</span>
+              </button>
             </div>
 
             <div className="space-y-2.5 text-sm">
